@@ -1,0 +1,13 @@
+/plume
+*.exe
+web/node_modules/
+web/dist/*
+!web/dist/index.html
+.env
+.DS_Store
+
+# SDD scratch (briefs, reports, review packages) — never commit
+.superpowers/
+
+# Claude Code local agent data (worktrees, settings) — never commit
+.claude/

@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: plume
+      POSTGRES_PASSWORD: plume
+      POSTGRES_DB: plume
+    ports:
+      - "5432:5432"
+    volumes:
+      - plume-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plume"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PLUME_DATABASE_URL: "postgres://plume:plume@db:5432/plume?sslmode=disable"
+      PLUME_ADMIN_EMAIL: "admin@example.com"
+      PLUME_ADMIN_PASSWORD: "change-me-now"
+      PLUME_COOKIE_SECRET: "dev-only-cookie-secret-change-me-now"  # >=32 bytes; override in production
+      PLUME_SECRET_KEY: "0123456789abcdef0123456789abcdef"          # exactly 32 bytes; override in production
+    ports:
+      - "8080:8080"
+
+volumes:
+  plume-db:

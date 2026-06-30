@@ -9,12 +9,18 @@ import (
 
 type stubMessager struct {
 	gotModel, gotSystem, gotUser string
+	gotMsgs                      []Message
 	reply                        string
 	err                          error
 }
 
 func (s *stubMessager) complete(_ context.Context, _ /*apiKey*/, model, system, user string) (string, error) {
 	s.gotModel, s.gotSystem, s.gotUser = model, system, user
+	return s.reply, s.err
+}
+
+func (s *stubMessager) completeChat(_ context.Context, _ /*apiKey*/, model, system string, msgs []Message) (string, error) {
+	s.gotModel, s.gotSystem, s.gotMsgs = model, system, msgs
 	return s.reply, s.err
 }
 
@@ -69,5 +75,64 @@ func TestRewriteEmptyReplyIsRefusal(t *testing.T) {
 	svc := New(&stubMessager{reply: "   "})
 	if _, err := svc.Rewrite(context.Background(), Config{APIKey: "k"}, "rewrite", "hello"); !errors.Is(err, ErrRefused) {
 		t.Fatalf("want ErrRefused, got %v", err)
+	}
+}
+
+func TestChatHappyPathReturnsTrimmedReply(t *testing.T) {
+	stub := &stubMessager{reply: "  Here is a draft.  "}
+	out, err := New(stub).Chat(context.Background(), Config{APIKey: "k"},
+		[]Message{{Role: "user", Content: "write me an email"}})
+	if err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if out != "Here is a draft." {
+		t.Fatalf("out = %q", out)
+	}
+	if stub.gotModel != DefaultModel {
+		t.Fatalf("model = %q, want default", stub.gotModel)
+	}
+	if len(stub.gotMsgs) != 1 || stub.gotMsgs[0].Content != "write me an email" {
+		t.Fatalf("msgs = %+v", stub.gotMsgs)
+	}
+}
+
+func TestChatValidation(t *testing.T) {
+	svc := New(&stubMessager{reply: "x"})
+	if _, err := svc.Chat(context.Background(), Config{APIKey: "k"}, nil); !errors.Is(err, ErrNoMessages) {
+		t.Fatalf("empty slice: err = %v, want ErrNoMessages", err)
+	}
+	big := []Message{{Role: "user", Content: strings.Repeat("a", 12001)}}
+	if _, err := svc.Chat(context.Background(), Config{APIKey: "k"}, big); !errors.Is(err, ErrTooLong) {
+		t.Fatalf("oversize: err = %v, want ErrTooLong", err)
+	}
+}
+
+func TestChatEmptyReplyIsRefusal(t *testing.T) {
+	svc := New(&stubMessager{reply: "  "})
+	if _, err := svc.Chat(context.Background(), Config{APIKey: "k"},
+		[]Message{{Role: "user", Content: "hi"}}); !errors.Is(err, ErrRefused) {
+		t.Fatalf("want ErrRefused, got %v", err)
+	}
+}
+
+func TestSuggestParsesThreeSubjectLines(t *testing.T) {
+	stub := &stubMessager{reply: "First subject\n\"Second subject\"\nThird subject\nExtra ignored"}
+	opts, err := New(stub).Suggest(context.Background(), Config{APIKey: "k"}, "subject", "Our new feature launched today.")
+	if err != nil {
+		t.Fatalf("Suggest: %v", err)
+	}
+	want := []string{"First subject", "Second subject", "Third subject"}
+	if len(opts) != 3 || opts[0] != want[0] || opts[1] != want[1] || opts[2] != want[2] {
+		t.Fatalf("opts = %#v, want %#v", opts, want)
+	}
+}
+
+func TestSuggestRejectsUnknownKindAndEmptyContext(t *testing.T) {
+	svc := New(&stubMessager{reply: "a\nb\nc"})
+	if _, err := svc.Suggest(context.Background(), Config{APIKey: "k"}, "preheader", "body"); !errors.Is(err, ErrBadAction) {
+		t.Fatalf("unknown kind: err = %v, want ErrBadAction", err)
+	}
+	if _, err := svc.Suggest(context.Background(), Config{APIKey: "k"}, "subject", "   "); !errors.Is(err, ErrEmpty) {
+		t.Fatalf("empty context: err = %v, want ErrEmpty", err)
 	}
 }

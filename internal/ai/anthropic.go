@@ -40,5 +40,36 @@ func (anthropicMessager) complete(ctx context.Context, apiKey, model, system, us
 	return sb.String(), nil
 }
 
+func (anthropicMessager) completeChat(ctx context.Context, apiKey, model, system string, msgs []Message) (string, error) {
+	client := anthropic.NewClient(option.WithAPIKey(apiKey))
+	params := make([]anthropic.MessageParam, 0, len(msgs))
+	for _, m := range msgs {
+		if m.Role == "assistant" {
+			params = append(params, anthropic.NewAssistantMessage(anthropic.NewTextBlock(m.Content)))
+		} else {
+			params = append(params, anthropic.NewUserMessage(anthropic.NewTextBlock(m.Content)))
+		}
+	}
+	resp, err := client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.Model(model),
+		MaxTokens: 2048,
+		System:    []anthropic.TextBlockParam{{Text: system}},
+		Messages:  params,
+	})
+	if err != nil {
+		return "", err
+	}
+	if resp.StopReason == anthropic.StopReasonRefusal {
+		return "", nil
+	}
+	var sb strings.Builder
+	for _, block := range resp.Content {
+		if t, ok := block.AsAny().(anthropic.TextBlock); ok {
+			sb.WriteString(t.Text)
+		}
+	}
+	return sb.String(), nil
+}
+
 // NewAnthropic builds a Service backed by the real Anthropic SDK.
 func NewAnthropic() *Service { return New(anthropicMessager{}) }

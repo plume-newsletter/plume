@@ -12,6 +12,7 @@ import { BlockCanvas } from './BlockCanvas'
 import { BlockInspector } from './BlockInspector'
 import { newBlock, addBlock, removeBlock, updateBlock, type Block, type BlockType } from './blocks'
 import { useRenderPreview } from './useRenderPreview'
+import { useAiSuggest } from '@/features/ai/useAiSuggest'
 import { useCreateTemplate } from '@/features/templates/useTemplates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,62 @@ import {
 import { cn } from '@/lib/utils'
 
 const TEMPLATE_CATEGORIES = ['Newsletter', 'Product', 'Promo', 'Transactional'] as const
+
+function subjectContext(blocks: Block[]): string {
+  // Top-level text/heading blocks only — good enough to ground subject lines.
+  return blocks.map((b) => b.text ?? '').filter(Boolean).join('\n')
+}
+
+function SubjectSuggest({ blocks, onPick }: { blocks: Block[]; onPick: (s: string) => void }) {
+  const suggest = useAiSuggest()
+  const [options, setOptions] = useState<string[] | null>(null)
+
+  const run = () => {
+    const context = subjectContext(blocks)
+    if (!context.trim()) {
+      toast.error('Add some body text first.')
+      return
+    }
+    suggest.mutate(
+      { kind: 'subject', context },
+      {
+        onSuccess: ({ options }) => setOptions(options),
+        onError: () => toast.error('Could not get suggestions.'),
+      },
+    )
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={run}
+        disabled={suggest.isPending}
+        className="inline-flex items-center gap-1 rounded-md border border-primary-weak bg-card px-2 py-1 text-xs font-semibold text-primary-text hover:bg-surface-2 disabled:opacity-50"
+      >
+        <Sparkles className="size-3" aria-hidden="true" />
+        {suggest.isPending ? 'Thinking…' : 'Suggest'}
+      </button>
+      {options && (
+        <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border bg-card p-1 shadow-lg">
+          {options.map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => {
+                onPick(o)
+                setOptions(null)
+              }}
+              className="block w-full rounded-md px-2.5 py-2 text-left text-sm hover:bg-surface-2"
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function SaveTemplateDialog({ blocks, subject, trigger }: {
   blocks: Block[]
@@ -195,6 +252,7 @@ export function ComposePage() {
             {status}
           </div>
         </div>
+        <SubjectSuggest blocks={blocks} onPick={setSubject} />
 
         <div className="ml-auto flex gap-0.5 rounded-lg bg-surface-2 p-[3px]">
           {([['desktop', Monitor, 'Desktop'], ['mobile', Smartphone, 'Mobile']] as const).map(([d, Icon, label]) => (

@@ -106,6 +106,8 @@ func NewRouter(authDeps AuthDeps) http.Handler {
 
 			aih := aiHandlers{ai: authDeps.AI, cfg: authDeps.Settings}
 			pr.Post("/ai/rewrite", aih.rewrite)
+			pr.Post("/ai/chat", aih.chat)
+			pr.Post("/ai/suggest", aih.suggest)
 
 			bkh := blocksHandlers{}
 			pr.Post("/blocks/render", bkh.render)

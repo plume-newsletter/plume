@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ApiWebhooksPanel } from './ApiWebhooksPanel'
 import { cn } from '@/lib/utils'
 
 const schema = z.object({
@@ -453,7 +454,7 @@ function ComingSoonPanel({ title }: { title: string }) {
   )
 }
 
-const TABS = ['General', 'Team', 'API & webhooks', 'Hooks', 'Billing'] as const
+const TABS = ['General', 'Team', 'API & webhooks', 'Billing'] as const
 type Tab = (typeof TABS)[number]
 
 export function SettingsPage() {
@@ -490,8 +491,7 @@ export function SettingsPage() {
         </div>
       )}
       {tab === 'Team' && <TeamPanel />}
-      {tab === 'API & webhooks' && <ComingSoonPanel title="API & webhooks" />}
-      {tab === 'Hooks' && <ComingSoonPanel title="Hooks" />}
+      {tab === 'API & webhooks' && <ApiWebhooksPanel />}
       {tab === 'Billing' && <ComingSoonPanel title="Billing" />}
     </div>
   )

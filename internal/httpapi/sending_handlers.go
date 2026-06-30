@@ -46,3 +46,34 @@ func (h sendingHandlers) send(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]int{"recipients": n})
 }
+
+func (h sendingHandlers) sendTest(w http.ResponseWriter, r *http.Request) {
+	owner, _ := adminID(r.Context())
+	campaignID, err := uuid.Parse(chiURLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	err = h.svc.SendTest(r.Context(), owner, campaignID, body.Email)
+	if errors.Is(err, sending.ErrBadEmail) {
+		http.Error(w, "invalid email address", http.StatusBadRequest)
+		return
+	}
+	if errors.Is(err, sending.ErrCampaignNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]bool{"sent": true})
+}

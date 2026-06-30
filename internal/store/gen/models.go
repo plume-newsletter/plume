@@ -40,6 +40,16 @@ type AdminUser struct {
 	Role               string    `json:"role"`
 }
 
+type ApiKey struct {
+	ID          uuid.UUID          `json:"id"`
+	WorkspaceID uuid.UUID          `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Prefix      string             `json:"prefix"`
+	Hash        string             `json:"hash"`
+	CreatedAt   time.Time          `json:"created_at"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+}
+
 type Automation struct {
 	ID          uuid.UUID `json:"id"`
 	OwnerID     uuid.UUID `json:"owner_id"`
@@ -200,6 +210,16 @@ type Template struct {
 	BodyJson  []byte    `json:"body_json"`
 	Prebuilt  bool      `json:"prebuilt"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type WebhookEndpoint struct {
+	ID          uuid.UUID `json:"id"`
+	WorkspaceID uuid.UUID `json:"workspace_id"`
+	Url         string    `json:"url"`
+	Secret      string    `json:"secret"`
+	Events      []string  `json:"events"`
+	Active      bool      `json:"active"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type Workspace struct {

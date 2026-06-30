@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/plume-newsletter/plume/internal/ai"
+	"github.com/plume-newsletter/plume/internal/analytics"
+	"github.com/plume-newsletter/plume/internal/segment"
 )
 
 // aiConfigGetter is satisfied by *settings.Service (decrypts the stored key).
@@ -20,11 +22,15 @@ type aiService interface {
 	Rewrite(ctx context.Context, cfg ai.Config, action, text string) (string, error)
 	Chat(ctx context.Context, cfg ai.Config, msgs []ai.Message) (string, error)
 	Suggest(ctx context.Context, cfg ai.Config, kind, context string) ([]string, error)
+	Insights(ctx context.Context, cfg ai.Config, analyticsJSON string) ([]ai.Insight, error)
+	SegmentRules(ctx context.Context, cfg ai.Config, prompt string, availableFields []string) (ai.SegmentRules, error)
 }
 
 type aiHandlers struct {
-	ai  aiService
-	cfg aiConfigGetter
+	ai        aiService
+	cfg       aiConfigGetter
+	analytics *analytics.Service
+	segments  *segment.Service
 }
 
 func (h aiHandlers) rewrite(w http.ResponseWriter, r *http.Request) {
@@ -127,4 +133,83 @@ func (h aiHandlers) suggest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string][]string{"options": options})
+}
+
+func (h aiHandlers) insights(w http.ResponseWriter, r *http.Request) {
+	owner, _ := adminID(r.Context())
+	apiKey, model, err := h.cfg.GetAIConfig(r.Context(), owner)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if apiKey == "" {
+		http.Error(w, "AI not configured", http.StatusBadRequest)
+		return
+	}
+	ov, err := h.analytics.Overview(r.Context(), owner, 30)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	snapshot, err := json.Marshal(ov)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	insights, err := h.ai.Insights(r.Context(), ai.Config{APIKey: apiKey, Model: model}, string(snapshot))
+	if err != nil {
+		http.Error(w, "AI request failed", http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string][]ai.Insight{"insights": insights})
+}
+
+func (h aiHandlers) segmentRules(w http.ResponseWriter, r *http.Request) {
+	owner, _ := adminID(r.Context())
+	var body struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	apiKey, model, err := h.cfg.GetAIConfig(r.Context(), owner)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if apiKey == "" {
+		http.Error(w, "AI not configured", http.StatusBadRequest)
+		return
+	}
+	fields, err := h.segments.FieldNames(r.Context(), owner)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	rules, err := h.ai.SegmentRules(r.Context(), ai.Config{APIKey: apiKey, Model: model}, body.Prompt, fields)
+	if err != nil {
+		switch {
+		case errors.Is(err, ai.ErrEmpty), errors.Is(err, ai.ErrTooLong):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "AI request failed", http.StatusBadGateway)
+		}
+		return
+	}
+
+	// Validate the model's output against the real compiler: convert to the
+	// segment condition type and run a preview. Garbage rules are rejected
+	// rather than handed to the builder.
+	conds := make([]segment.Condition, len(rules.Conditions))
+	for i, c := range rules.Conditions {
+		conds[i] = segment.Condition{Type: c.Type, Op: c.Op, Days: c.Days, Field: c.Field, Value: c.Value}
+	}
+	preview, err := h.segments.Preview(r.Context(), owner, rules.Match, conds)
+	if err != nil {
+		// ErrInvalidCondition or a DB error: the rules aren't usable.
+		http.Error(w, "AI produced invalid rules", http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]any{"match": rules.Match, "conditions": rules.Conditions, "count": preview.Count})
 }

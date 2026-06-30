@@ -13,6 +13,7 @@ import (
 	"github.com/plume-newsletter/plume/internal/abtest"
 	"github.com/plume-newsletter/plume/internal/ai"
 	"github.com/plume-newsletter/plume/internal/analytics"
+	"github.com/plume-newsletter/plume/internal/apikey"
 	"github.com/plume-newsletter/plume/internal/auth"
 	"github.com/plume-newsletter/plume/internal/automation"
 	"github.com/plume-newsletter/plume/internal/brand"
@@ -38,6 +39,7 @@ import (
 	"github.com/plume-newsletter/plume/internal/template"
 	"github.com/plume-newsletter/plume/internal/tracking"
 	"github.com/plume-newsletter/plume/internal/unsubscribe"
+	"github.com/plume-newsletter/plume/internal/webhook"
 )
 
 func main() {
@@ -95,9 +97,35 @@ func main() {
 		return ses.NewFromCreds(ctx, accessKeyID, secretAccessKey, region)
 	})
 
-	sendingSvc := sending.New(pool, q, h)
+	sendingSvc := sending.New(pool, q, h, resolver)
 	trackingSvc := tracking.New(q, h)
 	unsubscribeSvc := unsubscribe.New(q, h)
+
+	// Outbound webhooks: forward existing domain events to user-configured
+	// endpoints. These hook handlers are fire-and-react — Deliver returns
+	// immediately and never blocks or fails the triggering action.
+	webhookSvc := webhook.New(q)
+	h.AddAction(subscriber.HookSubscriberAdded, 50, func(ctx context.Context, p any) error {
+		if a, ok := p.(subscriber.AddedPayload); ok {
+			webhookSvc.Deliver(ctx, a.Subscriber.OwnerID, "subscriber.created", subscriberData(a.Subscriber))
+		}
+		return nil
+	})
+	h.AddAction(signup.HookConfirmed, 50, func(ctx context.Context, p any) error {
+		if a, ok := p.(signup.ConfirmedPayload); ok {
+			webhookSvc.Deliver(ctx, a.Subscriber.OwnerID, "subscriber.confirmed", subscriberData(a.Subscriber))
+		}
+		return nil
+	})
+	h.AddAction(sending.HookCampaignSent, 50, func(ctx context.Context, p any) error {
+		if a, ok := p.(sending.SendingPayload); ok {
+			c := a.Campaign
+			webhookSvc.Deliver(ctx, c.OwnerID, "campaign.sent", map[string]any{
+				"id": c.ID.String(), "subject": c.Subject, "status": c.Status,
+			})
+		}
+		return nil
+	})
 
 	baseURL := os.Getenv("PLUME_BASE_URL")
 	if baseURL == "" {
@@ -138,6 +166,8 @@ func main() {
 		ABTests:     abtest.New(q),
 		Automations: automationSvc,
 		Templates:   template.New(q, campaignSvc),
+		APIKeys:     apikey.New(q),
+		Webhooks:    webhookSvc,
 	}
 
 	addr := os.Getenv("PLUME_ADDR")
@@ -147,5 +177,14 @@ func main() {
 	log.Printf("plume listening on %s", addr)
 	if err := http.ListenAndServe(addr, httpapi.NewRouter(deps)); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// subscriberData is the webhook payload shape for subscriber events — a small,
+// stable subset of the row (no internal columns).
+func subscriberData(s gen.Subscriber) map[string]any {
+	return map[string]any{
+		"id": s.ID.String(), "email": s.Email, "name": s.Name,
+		"status": s.Status, "listId": s.ListID.String(),
 	}
 }

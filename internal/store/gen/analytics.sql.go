@@ -142,6 +142,17 @@ func (q *Queries) CountSubscribersCreatedSince(ctx context.Context, arg CountSub
 	return count, err
 }
 
+const countSuppressionsForOwner = `-- name: CountSuppressionsForOwner :one
+SELECT count(*) FROM suppression_entry WHERE owner_id = $1
+`
+
+func (q *Queries) CountSuppressionsForOwner(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSuppressionsForOwner, ownerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const opensByDay = `-- name: OpensByDay :many
 SELECT date_trunc('day', e.created_at)::timestamptz AS day, count(*) AS opens
 FROM email_event e JOIN campaign c ON c.id = e.campaign_id
@@ -209,6 +220,37 @@ func (q *Queries) OpensByWeekdayHour(ctx context.Context, arg OpensByWeekdayHour
 	for rows.Next() {
 		var i OpensByWeekdayHourRow
 		if err := rows.Scan(&i.Dow, &i.Hour, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recentSuppressionsForOwner = `-- name: RecentSuppressionsForOwner :many
+SELECT email, reason, created_at FROM suppression_entry
+WHERE owner_id = $1 ORDER BY created_at DESC LIMIT 100
+`
+
+type RecentSuppressionsForOwnerRow struct {
+	Email     string    `json:"email"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) RecentSuppressionsForOwner(ctx context.Context, ownerID uuid.UUID) ([]RecentSuppressionsForOwnerRow, error) {
+	rows, err := q.db.Query(ctx, recentSuppressionsForOwner, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecentSuppressionsForOwnerRow
+	for rows.Next() {
+		var i RecentSuppressionsForOwnerRow
+		if err := rows.Scan(&i.Email, &i.Reason, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

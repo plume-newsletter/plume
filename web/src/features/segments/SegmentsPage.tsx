@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import {
   Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
+import { useAiSegmentRules, type SegmentRules } from '@/features/ai/useAiSegmentRules'
 import { cn } from '@/lib/utils'
 
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`
@@ -33,6 +34,42 @@ function defaultCond(type: string): Condition {
   if (type === 'field') return { type, op: 'equals', field: '', value: '' }
   if (type === 'status') return { type, op: 'is', value: 'active' }
   return { type, op: 'in_last', days: 30 }
+}
+
+function AskAi({ onApply }: { onApply: (r: SegmentRules) => void }) {
+  const [prompt, setPrompt] = useState('')
+  const ask = useAiSegmentRules()
+
+  const run = () => {
+    const p = prompt.trim()
+    if (!p || ask.isPending) return
+    ask.mutate(p, {
+      onSuccess: (r) => { onApply(r); toast.success(`Built ${r.conditions.length} condition${r.conditions.length === 1 ? '' : 's'}`) },
+      onError: () => toast.error('Could not build rules. Add your AI key in Settings, or rephrase.'),
+    })
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-primary-weak bg-[linear-gradient(140deg,var(--primary-weak),var(--purple-weak))] p-3">
+      <div className="mb-2 text-sm">
+        <Sparkles className="mr-1.5 inline size-3.5 text-primary-text" aria-hidden="true" />
+        <strong className="text-primary-text">Ask AI:</strong> describe your audience in plain English.
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') run() }}
+          placeholder="e.g. active subscribers who opened in the last 14 days"
+          aria-label="Describe your audience"
+          className={cn(selCls, 'flex-1 bg-background')}
+        />
+        <Button type="button" onClick={run} disabled={!prompt.trim() || ask.isPending}>
+          {ask.isPending ? 'Thinking…' : 'Build'}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 export function SegmentsPage() {
@@ -143,11 +180,7 @@ export function SegmentsPage() {
             </button>
           </div>
 
-          {/* ponytail: Ask-AI is a placeholder until the NL->rules endpoint ships */}
-          <div className="mt-4 rounded-xl border border-primary-weak bg-[linear-gradient(140deg,var(--primary-weak),var(--purple-weak))] p-3 text-sm">
-            <Sparkles className="mr-1.5 inline size-3.5 text-primary-text" aria-hidden="true" />
-            <strong className="text-primary-text">Ask AI:</strong> describe your audience in plain English — coming soon.
-          </div>
+          <AskAi onApply={(r) => { setMatch(r.match); setConds(r.conditions) }} />
         </div>
 
         {/* Preview + saved */}

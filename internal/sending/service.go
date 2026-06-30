@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/mail"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/plume-newsletter/plume/internal/email"
 	"github.com/plume-newsletter/plume/internal/hooks"
 	"github.com/plume-newsletter/plume/internal/render"
 	"github.com/plume-newsletter/plume/internal/store/gen"
@@ -28,6 +30,8 @@ var (
 	// ErrAlreadyQueued is returned when Enqueue is called on a campaign that
 	// is not in 'draft' status, to guard against double-sending the list.
 	ErrAlreadyQueued = errors.New("campaign already queued or sent")
+	// ErrBadEmail is returned by SendTest when the address does not parse.
+	ErrBadEmail = errors.New("invalid email address")
 )
 
 // SendingPayload is the Action payload for campaign.sending / campaign.sent.
@@ -36,13 +40,55 @@ type SendingPayload struct {
 }
 
 type Service struct {
-	pool *pgxpool.Pool
-	q    *gen.Queries
-	h    *hooks.Hooks
+	pool     *pgxpool.Pool
+	q        *gen.Queries
+	h        *hooks.Hooks
+	resolver email.Resolver
 }
 
-func New(pool *pgxpool.Pool, q *gen.Queries, h *hooks.Hooks) *Service {
-	return &Service{pool: pool, q: q, h: h}
+func New(pool *pgxpool.Pool, q *gen.Queries, h *hooks.Hooks, resolver email.Resolver) *Service {
+	return &Service{pool: pool, q: q, h: h, resolver: resolver}
+}
+
+// SendTest delivers the campaign's currently-saved body to a single address,
+// for the composer's "Send test" action. It is owner-scoped and transactional:
+// it sends the stored HtmlBody/PlainBody/Subject as-is (no open-pixel,
+// unsubscribe, or click rewrite — those are per-recipient and undesirable in a
+// test) and never mutates campaign status or the send queue. Works on a
+// campaign in any status.
+func (s *Service) SendTest(ctx context.Context, owner, campaignID uuid.UUID, addr string) error {
+	parsed, err := mail.ParseAddress(addr)
+	if err != nil {
+		return ErrBadEmail
+	}
+	c, err := s.q.GetCampaignForOwner(ctx, gen.GetCampaignForOwnerParams{ID: campaignID, OwnerID: owner})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrCampaignNotFound
+		}
+		return err
+	}
+	b, err := s.q.GetBrandByID(ctx, c.BrandID)
+	if err != nil {
+		return err
+	}
+	provider, err := s.resolver.Provider(ctx)
+	if err != nil {
+		return err
+	}
+	subject := c.Subject
+	if subject == "" {
+		subject = "(no subject)"
+	}
+	return provider.Send(ctx, email.Message{
+		From:     b.FromEmail,
+		FromName: b.FromName,
+		ReplyTo:  b.ReplyTo,
+		To:       parsed.Address,
+		Subject:  "[Test] " + subject,
+		HTML:     c.HtmlBody,
+		Text:     c.PlainBody,
+	})
 }
 
 // Enqueue verifies the campaign and list are owned by owner, extracts links

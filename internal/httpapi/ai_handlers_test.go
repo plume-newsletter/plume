@@ -23,6 +23,12 @@ func (s stubAI) Chat(_ context.Context, _ ai.Config, _ []ai.Message) (string, er
 func (s stubAI) Suggest(_ context.Context, _ ai.Config, _, _ string) ([]string, error) {
 	return s.options, nil
 }
+func (s stubAI) Insights(_ context.Context, _ ai.Config, _ string) ([]ai.Insight, error) {
+	return nil, nil
+}
+func (s stubAI) SegmentRules(_ context.Context, _ ai.Config, _ string, _ []string) (ai.SegmentRules, error) {
+	return ai.SegmentRules{}, nil
+}
 
 // stubCfg implements aiConfigGetter.
 type stubCfg struct{ key, model string }

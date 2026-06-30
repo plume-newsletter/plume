@@ -126,8 +126,8 @@ func (s *Service) Deliver(ctx context.Context, owner uuid.UUID, event string, da
 		return
 	}
 	body, err := json.Marshal(map[string]any{
-		"event": event,
-		"data":  data,
+		"event":  event,
+		"data":   data,
 		"sentAt": time.Now().UTC().Format(time.RFC3339),
 	})
 	if err != nil {

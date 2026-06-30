@@ -18,8 +18,12 @@ type stubAI struct {
 	options []string
 }
 
-func (s stubAI) Rewrite(_ context.Context, _ ai.Config, _, _ string) (string, error) { return s.reply, nil }
-func (s stubAI) Chat(_ context.Context, _ ai.Config, _ []ai.Message) (string, error) { return s.reply, nil }
+func (s stubAI) Rewrite(_ context.Context, _ ai.Config, _, _ string) (string, error) {
+	return s.reply, nil
+}
+func (s stubAI) Chat(_ context.Context, _ ai.Config, _ []ai.Message) (string, error) {
+	return s.reply, nil
+}
 func (s stubAI) Suggest(_ context.Context, _ ai.Config, _, _ string) ([]string, error) {
 	return s.options, nil
 }

@@ -1,4 +1,4 @@
-.PHONY: dev build build-web test migrate sqlc generate
+.PHONY: dev build build-web test fmt fmt-check migrate sqlc generate
 
 build-web:
 	cd web && npm install && npm run build
@@ -6,7 +6,15 @@ build-web:
 build: build-web
 	go build -o plume ./cmd/plume
 
-test:
+# fmt rewrites any unformatted Go files in place.
+fmt:
+	gofmt -w .
+
+# fmt-check fails (like CI) if any Go file is not gofmt-clean.
+fmt-check:
+	@test -z "$$(gofmt -l .)" || (gofmt -l . && echo 'Run: make fmt' && exit 1)
+
+test: fmt-check
 	go test ./...
 
 dev:

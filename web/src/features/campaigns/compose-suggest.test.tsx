@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { beforeAll, afterAll, afterEach, expect, test } from 'vitest'
+import { beforeAll, afterAll, afterEach, expect, test, vi } from 'vitest'
 import { server, http, HttpResponse } from '@/test/msw'
 import { ComposePage } from '@/features/campaigns/ComposePage'
 
@@ -13,11 +13,11 @@ afterAll(() => server.close())
 const sampleCampaign = {
   id: 'c1', owner_id: 'o', brand_id: 'b1', subject: 'Hello',
   html_body: '<p>Hi</p>', plain_body: 'Hi',
-  body_json: JSON.stringify([{ id: 'b1', type: 'text', text: 'Our new feature shipped today.' }]),
+  body_json: JSON.stringify([{ id: 'b1', type: 'text', html: 'Our new feature shipped today.' }]),
   status: 'draft', scheduled_at: null, created_at: '',
 }
 
-function wrap() {
+function wrap(campaign = sampleCampaign) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
@@ -51,4 +51,41 @@ test('Suggest fills the subject with a chosen option', async () => {
   await user.click(await screen.findByText('Your update is here'))
 
   expect((screen.getByLabelText('Subject') as HTMLInputElement).value).toBe('Your update is here')
+})
+
+test('Suggest with empty body shows toast and does NOT call the API', async () => {
+  let suggestCallCount = 0
+  const emptyCampaign = {
+    ...sampleCampaign,
+    body_json: JSON.stringify([{ id: 'b1', type: 'divider' }]),
+  }
+  server.use(
+    http.get('/api/campaigns/c1', () => HttpResponse.json(emptyCampaign)),
+    http.get('/api/lists', () => HttpResponse.json([])),
+    http.put('/api/campaigns/c1', () => HttpResponse.json(emptyCampaign)),
+    http.post('/api/ai/suggest', () => {
+      suggestCallCount++
+      return HttpResponse.json({ options: ['Should not appear'] })
+    }),
+  )
+
+  // Suppress console.error for the expected toast (sonner uses it internally in tests)
+  const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+  const user = userEvent.setup()
+  wrap()
+
+  await waitFor(() => {
+    expect((screen.getByLabelText('Subject') as HTMLInputElement).value).toBe('Hello')
+  })
+
+  await user.click(screen.getByRole('button', { name: /suggest/i }))
+
+  // Give any async handlers time to fire (they should not)
+  await new Promise((r) => setTimeout(r, 50))
+
+  expect(suggestCallCount).toBe(0)
+  expect(screen.queryByText('Should not appear')).not.toBeInTheDocument()
+
+  consoleSpy.mockRestore()
 })

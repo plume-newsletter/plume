@@ -29,9 +29,22 @@ import { cn } from '@/lib/utils'
 
 const TEMPLATE_CATEGORIES = ['Newsletter', 'Product', 'Promo', 'Transactional'] as const
 
+function extractBlockText(block: Block): string {
+  if (block.type === 'heading') return block.text ?? ''
+  if (block.type === 'text' || block.type === 'html') {
+    return (block.html ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+  if (block.type === 'columns') {
+    return [
+      ...(block.left ?? []).map(extractBlockText),
+      ...(block.right ?? []).map(extractBlockText),
+    ].filter(Boolean).join('\n')
+  }
+  return ''
+}
+
 function subjectContext(blocks: Block[]): string {
-  // Top-level text/heading blocks only — good enough to ground subject lines.
-  return blocks.map((b) => b.text ?? '').filter(Boolean).join('\n')
+  return blocks.map(extractBlockText).filter(Boolean).join('\n')
 }
 
 function SubjectSuggest({ blocks, onPick }: { blocks: Block[]; onPick: (s: string) => void }) {

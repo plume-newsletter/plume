@@ -166,9 +166,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
       {!isUser && (
         <button
-          onClick={() => {
-            navigator.clipboard?.writeText(message.content)
-            toast.success('Copied')
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard?.writeText(message.content)
+              toast.success('Copied')
+            } catch {
+              toast.error('Could not copy — check browser permissions')
+            }
           }}
           className="text-xs text-muted-foreground hover:text-foreground"
         >

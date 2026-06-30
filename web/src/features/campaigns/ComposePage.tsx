@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner'
 import { useCampaign, useUpdateCampaign } from './useCampaign'
 import { SendDialog } from './SendDialog'
+import { TestSendDialog } from './TestSendDialog'
 import { BlockCanvas } from './BlockCanvas'
 import { BlockInspector } from './BlockInspector'
 import { newBlock, addBlock, removeBlock, updateBlock, type Block, type BlockType } from './blocks'
@@ -279,10 +280,7 @@ export function ComposePage() {
         <Button type="button" variant="outline" onClick={openPreview} disabled={preview.isPending} className="gap-1.5">
           <Eye className="size-3.5" aria-hidden="true" /> Preview
         </Button>
-        {/* ponytail: test send is a placeholder until the send pipeline exposes it */}
-        <Button type="button" variant="outline" className="gap-1.5">
-          <Send className="size-3.5" aria-hidden="true" /> Send test
-        </Button>
+        <TestSendDialog campaignId={id!} />
         <SaveTemplateDialog
           blocks={blocks}
           subject={subject}

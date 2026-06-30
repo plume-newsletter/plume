@@ -74,7 +74,7 @@ func TestEnqueueAndWorkerSendsToActiveSubscribers(t *testing.T) {
 		return nil
 	})
 
-	svc := sending.New(pool, q, h)
+	svc := sending.New(pool, q, h, nil)
 	n, err := svc.Enqueue(ctx, owner, c.ID, l.ID)
 	if err != nil {
 		t.Fatalf("Enqueue: %v", err)
@@ -198,7 +198,7 @@ func TestWorkerSkipsSuppressedRecipient(t *testing.T) {
 		t.Fatalf("seed campaign: %v", err)
 	}
 
-	svc := sending.New(pool, q, h)
+	svc := sending.New(pool, q, h, nil)
 	if _, err := svc.Enqueue(ctx, owner, c.ID, l.ID); err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestEnqueueRejectsDoubleSend(t *testing.T) {
 		t.Fatalf("seed campaign: %v", err)
 	}
 
-	svc := sending.New(pool, q, h)
+	svc := sending.New(pool, q, h, nil)
 	n, err := svc.Enqueue(ctx, owner, c.ID, l.ID)
 	if err != nil {
 		t.Fatalf("first Enqueue: %v", err)
@@ -330,7 +330,7 @@ func TestEnqueueSucceedsWhenActionHandlerErrors(t *testing.T) {
 		t.Fatalf("seed campaign: %v", err)
 	}
 
-	svc := sending.New(pool, q, h)
+	svc := sending.New(pool, q, h, nil)
 	n, err := svc.Enqueue(ctx, owner, c.ID, l.ID)
 	if err != nil {
 		t.Fatalf("Enqueue should succeed despite handler error: %v", err)
@@ -415,7 +415,7 @@ func TestEnqueueNotFound(t *testing.T) {
 
 	h := hooks.New()
 	render.Register(h)
-	svc := sending.New(pool, q, h)
+	svc := sending.New(pool, q, h, nil)
 
 	b, err := brand.New(q).Create(ctx, owner, brand.BrandInput{
 		Name: "Acme", FromName: "Acme News", FromEmail: "news@acme.test", ReplyTo: "reply@acme.test",

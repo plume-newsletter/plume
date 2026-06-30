@@ -21,3 +21,17 @@ func (h analyticsHandlers) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, ov)
 }
+
+func (h analyticsHandlers) deliverability(w http.ResponseWriter, r *http.Request) {
+	owner, _ := adminID(r.Context())
+	window := 30
+	if r.URL.Query().Get("window") == "90" {
+		window = 90
+	}
+	d, err := h.svc.Deliverability(r.Context(), owner, window)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, d)
+}

@@ -17,7 +17,7 @@ import { SignupFormsPage } from '@/features/signup-forms/SignupFormsPage'
 import { ABTestsPage } from '@/features/ab-tests/ABTestsPage'
 import { AutomationsPage } from '@/features/automations/AutomationsPage'
 import { TemplatesPage } from '@/features/templates/TemplatesPage'
-import { ComingSoon } from '@/components/ComingSoon'
+import { DeliverabilityPage } from '@/features/deliverability/DeliverabilityPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -43,7 +43,7 @@ export const router = createBrowserRouter([
           { path: 'automations', element: <AutomationsPage /> },
           { path: 'ab-tests', element: <ABTestsPage /> },
           { path: 'templates', element: <TemplatesPage /> },
-          { path: 'deliverability', element: <ComingSoon title="Deliverability" description="Monitor bounces, complaints, and sender health." /> },
+          { path: 'deliverability', element: <DeliverabilityPage /> },
         ],
       },
     ],

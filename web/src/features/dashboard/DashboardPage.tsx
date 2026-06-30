@@ -2,20 +2,14 @@ import { Link } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useMe } from '@/features/auth/useAuth'
 import { useAiAssistant } from '@/features/ai/AiAssistant'
+import { useAiInsights } from '@/features/ai/useAiInsights'
 import { useCampaigns } from '@/features/campaigns/useCampaigns'
 import { useAnalytics } from '@/features/analytics/useAnalytics'
 import { timeGreeting, displayName } from '@/features/dashboard/greeting'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-// ponytail: INSIGHTS panel is sample data (AI feature parked); all metrics are
-// now real data from analytics. Recent campaigns uses analytics campaigns[].
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const INSIGHTS = [
-  { strong: 'Tuesday 9am', rest: ' drives your best opens.', muted: ' Schedule the next send then?' },
-  { strong: '312 subscribers', rest: ' went cold.', muted: ' Start a win-back automation.' },
-  { strong: null, rest: 'Subject lines with ', strongInline: 'emojis', tail: ' lift opens 6% for your list.' },
-]
 
 const pct = (n: number) => `${(n * 100).toFixed(1)}%`
 
@@ -46,6 +40,7 @@ export function DashboardPage() {
   const { isLoading: campaignsLoading } = useCampaigns()
   const { data: a } = useAnalytics(30)
   const ai = useAiAssistant()
+  const insights = useAiInsights()
   const greeting = `${timeGreeting(new Date().getHours())}, ${displayName(me.data?.email)} 👋`
 
   // Subscriber sparkline: last 7 gained values from subscriberGrowth, scaled to %
@@ -196,12 +191,20 @@ export function DashboardPage() {
             <h3 className="text-base font-bold text-primary-text">AI insights</h3>
           </div>
           <div className="flex flex-col gap-2.5">
-            {INSIGHTS.map((it, i) => (
+            {insights.isLoading && [0, 1, 2].map((i) => (
+              <div key={i} className="rounded-[10px] border bg-card p-3">
+                <Skeleton className="h-4 w-full" />
+              </div>
+            ))}
+            {!insights.isLoading && !insights.data?.insights.length && (
+              <div className="rounded-[10px] border bg-card p-3 text-sm text-muted-foreground">
+                Add your AI key in <Link to="/settings" className="font-semibold text-primary-text">Settings</Link> to get insights from your analytics.
+              </div>
+            )}
+            {insights.data?.insights.map((it, i) => (
               <div key={i} className="rounded-[10px] border bg-card p-3 text-sm">
                 {it.strong && <strong className="text-foreground">{it.strong}</strong>}
                 {it.rest}
-                {it.strongInline && <strong className="text-foreground">{it.strongInline}</strong>}
-                {it.tail}
                 {it.muted && <span className="text-muted-foreground">{it.muted}</span>}
               </div>
             ))}

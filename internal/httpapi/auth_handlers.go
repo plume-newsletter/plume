@@ -8,6 +8,7 @@ import (
 	"github.com/plume-newsletter/plume/internal/abtest"
 	"github.com/plume-newsletter/plume/internal/ai"
 	"github.com/plume-newsletter/plume/internal/analytics"
+	"github.com/plume-newsletter/plume/internal/apikey"
 	"github.com/plume-newsletter/plume/internal/auth"
 	"github.com/plume-newsletter/plume/internal/automation"
 	"github.com/plume-newsletter/plume/internal/brand"
@@ -25,6 +26,7 @@ import (
 	"github.com/plume-newsletter/plume/internal/template"
 	"github.com/plume-newsletter/plume/internal/tracking"
 	"github.com/plume-newsletter/plume/internal/unsubscribe"
+	"github.com/plume-newsletter/plume/internal/webhook"
 )
 
 const sessionCookieName = "plume_session"
@@ -52,6 +54,8 @@ type AuthDeps struct {
 	ABTests     *abtest.Service
 	Automations *automation.Service
 	Templates   *template.Service
+	APIKeys     *apikey.Service
+	Webhooks    *webhook.Service
 }
 
 type loginRequest struct {

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,11 +24,30 @@ type CurrentUser struct {
 	Role string
 }
 
-// requireAuth verifies the session cookie, loads the user, and stores the
-// user's workspace id (owner scope) + the current user (id, role) in context.
-func requireAuth(cookie *auth.Cookie, q *gen.Queries) func(http.Handler) http.Handler {
+// apiKeyAuth resolves a raw API key to its workspace id. Satisfied by *apikey.Service.
+type apiKeyAuth interface {
+	Authenticate(ctx context.Context, raw string) (uuid.UUID, error)
+}
+
+// requireAuth authenticates a request via either an "Authorization: Bearer
+// <api key>" header or the session cookie, and stores the workspace id (owner
+// scope) + current user (id, role) in context. An API key acts as the
+// workspace owner, so role-gated routes treat it as role "owner".
+func requireAuth(cookie *auth.Cookie, q *gen.Queries, keys apiKeyAuth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if raw, ok := bearerToken(r); ok {
+				owner, err := keys.Authenticate(r.Context(), raw)
+				if err != nil {
+					http.Error(w, "unauthorized", http.StatusUnauthorized)
+					return
+				}
+				ctx := context.WithValue(r.Context(), adminIDKey, owner)
+				ctx = context.WithValue(ctx, currentUserKey, CurrentUser{ID: owner, Role: "owner"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			c, err := r.Cookie(sessionCookieName)
 			if err != nil {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -74,3 +94,13 @@ func requireRole(ctx context.Context, roles ...string) bool {
 }
 
 func chiURLParam(r *http.Request, key string) string { return chi.URLParam(r, key) }
+
+// bearerToken extracts the token from an "Authorization: Bearer <token>" header.
+func bearerToken(r *http.Request) (string, bool) {
+	h := r.Header.Get("Authorization")
+	const p = "Bearer "
+	if len(h) > len(p) && strings.EqualFold(h[:len(p)], p) {
+		return h[len(p):], true
+	}
+	return "", false
+}

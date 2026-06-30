@@ -53,7 +53,7 @@ func NewRouter(authDeps AuthDeps) http.Handler {
 		api.Post("/invites/{token}/accept", tmh.acceptInvite)
 
 		api.Group(func(pr chi.Router) {
-			pr.Use(requireAuth(authDeps.Cookie, authDeps.Queries))
+			pr.Use(requireAuth(authDeps.Cookie, authDeps.Queries, authDeps.APIKeys))
 			bh := brandHandlers{svc: authDeps.Brands}
 			pr.Get("/brands", bh.list)
 			pr.Post("/brands", bh.create)
@@ -86,6 +86,7 @@ func NewRouter(authDeps AuthDeps) http.Handler {
 
 			snh := sendingHandlers{svc: authDeps.Sending}
 			pr.Post("/campaigns/{id}/send", snh.send)
+			pr.Post("/campaigns/{id}/test", snh.sendTest)
 
 			rh := reportHandlers{svc: authDeps.Reports}
 			pr.Get("/campaigns/{id}/report", rh.campaign)
@@ -98,16 +99,29 @@ func NewRouter(authDeps AuthDeps) http.Handler {
 
 			anh := analyticsHandlers{svc: authDeps.Analytics}
 			pr.Get("/analytics/overview", anh.overview)
+			pr.Get("/analytics/deliverability", anh.deliverability)
 
 			sth := settingsHandlers{svc: authDeps.Settings}
 			pr.Get("/settings", sth.get)
 			pr.Put("/settings/ses", sth.setSES)
 			pr.Put("/settings/ai", sth.setAI)
 
-			aih := aiHandlers{ai: authDeps.AI, cfg: authDeps.Settings}
+			akh := apikeyHandlers{svc: authDeps.APIKeys}
+			pr.Get("/api-keys", akh.list)
+			pr.Post("/api-keys", akh.create)
+			pr.Delete("/api-keys/{id}", akh.delete)
+
+			whh := webhookHandlers{svc: authDeps.Webhooks}
+			pr.Get("/webhooks", whh.list)
+			pr.Post("/webhooks", whh.create)
+			pr.Delete("/webhooks/{id}", whh.delete)
+
+			aih := aiHandlers{ai: authDeps.AI, cfg: authDeps.Settings, analytics: authDeps.Analytics, segments: authDeps.Segments}
 			pr.Post("/ai/rewrite", aih.rewrite)
 			pr.Post("/ai/chat", aih.chat)
 			pr.Post("/ai/suggest", aih.suggest)
+			pr.Post("/ai/insights", aih.insights)
+			pr.Post("/ai/segment-rules", aih.segmentRules)
 
 			bkh := blocksHandlers{}
 			pr.Post("/blocks/render", bkh.render)

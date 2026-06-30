@@ -7,10 +7,69 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/plume-newsletter/plume/internal/apikey"
 	"github.com/plume-newsletter/plume/internal/auth"
 	"github.com/plume-newsletter/plume/internal/store/gen"
 	"github.com/plume-newsletter/plume/internal/testsupport"
 )
+
+// stubKeys is a no-op api key authenticator: these tests exercise the cookie path.
+type stubKeys struct{}
+
+func (stubKeys) Authenticate(context.Context, string) (uuid.UUID, error) {
+	return uuid.Nil, apikey.ErrInvalid
+}
+
+// bearerKeys authenticates exactly one token to a fixed owner.
+type bearerKeys struct {
+	token string
+	owner uuid.UUID
+}
+
+func (b bearerKeys) Authenticate(_ context.Context, raw string) (uuid.UUID, error) {
+	if raw == b.token {
+		return b.owner, nil
+	}
+	return uuid.Nil, apikey.ErrInvalid
+}
+
+func TestRequireAuthBearerToken(t *testing.T) {
+	owner := uuid.New()
+	keys := bearerKeys{token: "plume_good", owner: owner}
+	// nil cookie/queries are fine: a valid Bearer header never touches them.
+	var sawOwner uuid.UUID
+	var sawRole string
+	h := requireAuth(nil, nil, keys)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawOwner, _ = adminID(r.Context())
+		u, _ := currentUser(r.Context())
+		sawRole = u.Role
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Valid key → 200, owner scope set, role "owner".
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/brands", nil)
+	req.Header.Set("Authorization", "Bearer plume_good")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("valid key: code = %d", rec.Code)
+	}
+	if sawOwner != owner {
+		t.Fatalf("owner = %v, want %v", sawOwner, owner)
+	}
+	if sawRole != "owner" {
+		t.Fatalf("role = %q, want owner", sawRole)
+	}
+
+	// Bad key → 401 (never falls through to the cookie path).
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/brands", nil)
+	req.Header.Set("Authorization", "Bearer plume_bad")
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("bad key: code = %d, want 401", rec.Code)
+	}
+}
 
 func TestRequireAuthRejectsAndAllows(t *testing.T) {
 	cookie := auth.NewCookie([]byte("a-32-byte-or-longer-test-secret!!"))
@@ -29,7 +88,7 @@ func TestRequireAuthRejectsAndAllows(t *testing.T) {
 	}
 
 	var sawID uuid.UUID
-	protected := requireAuth(cookie, q)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := requireAuth(cookie, q, stubKeys{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := adminID(r.Context())
 		if !ok {
 			t.Error("adminID missing in context")

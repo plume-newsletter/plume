@@ -65,3 +65,10 @@ FROM campaign c
 JOIN email_event e ON e.campaign_id = c.id AND e.type = 'open' AND e.created_at >= $2
 WHERE c.owner_id = $1
 GROUP BY c.id, c.subject ORDER BY opens DESC LIMIT 4;
+
+-- name: CountSuppressionsForOwner :one
+SELECT count(*) FROM suppression_entry WHERE owner_id = $1;
+
+-- name: RecentSuppressionsForOwner :many
+SELECT email, reason, created_at FROM suppression_entry
+WHERE owner_id = $1 ORDER BY created_at DESC LIMIT 100;

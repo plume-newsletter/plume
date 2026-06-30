@@ -16,7 +16,6 @@ const TITLES: Record<string, string> = {
   '/templates': 'Templates',
   '/deliverability': 'Deliverability',
   '/settings': 'Settings',
-  '/ai': 'Ask Plume AI',
 }
 
 function titleForPath(pathname: string): string {

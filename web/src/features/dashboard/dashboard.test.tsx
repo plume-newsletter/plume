@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeAll, afterAll, afterEach, expect, test } from 'vitest'
 import { server, http, HttpResponse } from '@/test/msw'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { AiAssistantProvider } from '@/features/ai/AiAssistant'
 
 beforeAll(() => server.listen())
 afterEach(() => server.resetHandlers())
@@ -19,7 +20,9 @@ function wrap() {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <DashboardPage />
+        <AiAssistantProvider>
+          <DashboardPage />
+        </AiAssistantProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )

@@ -23,6 +23,7 @@ import { useMe, useLogout } from '@/features/auth/useAuth'
 import { Button } from '@/components/ui/button'
 import { TopBar } from '@/components/TopBar'
 import { cn } from '@/lib/utils'
+import { AiAssistantProvider, useAiAssistant } from '@/features/ai/AiAssistant'
 
 type NavItem = {
   to: string
@@ -112,19 +113,23 @@ function SidebarFooter({ onNavigate }: { onNavigate?: () => void }) {
   const nav = useNavigate()
   const me = useMe()
   const logout = useLogout()
+  const ai = useAiAssistant()
   const fullName = me.data?.fullName || me.data?.email?.split('@')[0] || ''
   const initials = (fullName || me.data?.email || '··').slice(0, 2).toUpperCase()
 
   return (
     <div className="border-t p-3 space-y-2">
-      <NavLink
-        to="/ai"
-        onClick={onNavigate}
-        className="flex items-center gap-2 rounded-lg bg-primary-weak px-3 py-2 text-sm font-medium text-primary-text hover:opacity-90"
+      <button
+        type="button"
+        onClick={() => {
+          onNavigate?.()
+          ai.toggle()
+        }}
+        className="flex w-full items-center gap-2 rounded-lg bg-primary-weak px-3 py-2 text-sm font-medium text-primary-text hover:opacity-90"
       >
         <Sparkles className="size-4 shrink-0" aria-hidden="true" />
         Ask Plume AI
-      </NavLink>
+      </button>
       <div className="flex items-center gap-2 px-1">
         <span
           className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-xs font-semibold"
@@ -172,6 +177,7 @@ export function AppShell() {
   const fullBleed = /^\/campaigns\/[^/]+$/.test(useLocation().pathname)
 
   return (
+    <AiAssistantProvider>
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex lg:w-64 lg:flex-col lg:border-r bg-sidebar">
@@ -229,5 +235,6 @@ export function AppShell() {
         </main>
       </div>
     </div>
+    </AiAssistantProvider>
   )
 }

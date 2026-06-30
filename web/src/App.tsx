@@ -44,7 +44,6 @@ export const router = createBrowserRouter([
           { path: 'ab-tests', element: <ABTestsPage /> },
           { path: 'templates', element: <TemplatesPage /> },
           { path: 'deliverability', element: <ComingSoon title="Deliverability" description="Monitor bounces, complaints, and sender health." /> },
-          { path: 'ai', element: <ComingSoon title="Ask Plume AI" description="Your AI copilot for copy, layouts, and insights." /> },
         ],
       },
     ],

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Sparkles } from 'lucide-react'
 import { useMe } from '@/features/auth/useAuth'
+import { useAiAssistant } from '@/features/ai/AiAssistant'
 import { useCampaigns } from '@/features/campaigns/useCampaigns'
 import { useAnalytics } from '@/features/analytics/useAnalytics'
 import { timeGreeting, displayName } from '@/features/dashboard/greeting'
@@ -44,6 +45,7 @@ export function DashboardPage() {
   const me = useMe()
   const { isLoading: campaignsLoading } = useCampaigns()
   const { data: a } = useAnalytics(30)
+  const ai = useAiAssistant()
   const greeting = `${timeGreeting(new Date().getHours())}, ${displayName(me.data?.email)} 👋`
 
   // Subscriber sparkline: last 7 gained values from subscriberGrowth, scaled to %
@@ -204,12 +206,13 @@ export function DashboardPage() {
               </div>
             ))}
           </div>
-          <Link
-            to="/ai"
-            className="mt-3.5 block rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-white hover:bg-primary/90"
+          <button
+            type="button"
+            onClick={ai.toggle}
+            className="mt-3.5 block w-full rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-white hover:bg-primary/90"
           >
             Open AI assistant
-          </Link>
+          </button>
         </div>
       </div>
 

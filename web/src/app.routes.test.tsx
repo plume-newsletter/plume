@@ -12,7 +12,9 @@ function allPaths(routes: typeof router.routes): string[] {
 
 test('registers a route for every placeholder feature', () => {
   const paths = allPaths(router.routes)
-  for (const p of ['analytics', 'segments', 'signup-forms', 'automations', 'ab-tests', 'deliverability', 'ai']) {
+  for (const p of ['analytics', 'segments', 'signup-forms', 'automations', 'ab-tests', 'deliverability']) {
     expect(paths).toContain(p)
   }
+  // /ai is no longer a routed page — it opens as a slide-over panel via AiAssistantProvider
+  expect(paths).not.toContain('ai')
 })
